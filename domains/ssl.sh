@@ -35,6 +35,8 @@ source /usr/local/opencli/lib/requirement.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/tenantfs.sh
 require_command jq
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -398,6 +400,18 @@ check_custom_ssl_or_auto() {
 	fi
 }
 
+
+if [ -n "$2" ] && podman_k8s; then
+    # OKD: TLS is terminated by the router with the cluster's wildcard certificate
+    case "$2" in
+        status) echo "AutoSSL" ;;
+        info)   echo "TLS is terminated by the OKD router (edge Route) with the cluster certificate." ;;
+        logs)   echo "No per-domain SSL logs: certificates are managed by the OKD router." ;;
+        auto|selfsigned) echo "Already using the OKD router certificate." ;;
+        *) echo "ERROR: custom SSL is not supported on OKD, certificates are managed by the router."; exit 1 ;;
+    esac
+    exit 0
+fi
 
 if [ -n "$2" ]; then
 
