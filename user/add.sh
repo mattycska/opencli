@@ -71,12 +71,22 @@ RESELLER=""
 WEBSERVER=""
 SQL_TYPE=""
 
+# OpenPanel running natively on OKD/Kubernetes: no Linux users or podman sockets, each account is a namespace
+K8S=false
+[[ "${OPENPANEL_BACKEND:-}" == "kubernetes" ]] && K8S=true
+$K8S && chown() { :; }
+
 cleanup() {
     rm -f "$LOCK_FILE"
 }
 
 hard_cleanup() {
     [[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1; }
+    if $K8S; then
+        opkube tenant delete "$USERNAME" >/dev/null 2>&1
+        rm -rf "/home/${USERNAME}" "/etc/openpanel/openpanel/core/users/${USERNAME}"
+        return 0
+    fi
     local uid
     uid="$(id -u "$USERNAME" 2>/dev/null)" || return 0
     [[ "$uid" =~ ^[0-9]+$ ]] || return 1
@@ -297,6 +307,11 @@ autostart_services() {
 
 create_linux_user_local() {
     log "Creating local Linux user '$USERNAME'"
+    if $K8S; then
+        opkube tenant create "$USERNAME" >/dev/null || die "Failed to create the namespace for '$USERNAME'."
+        USER_ID="$(stat -c '%u' "/home/${USERNAME}" 2>/dev/null || echo 0)"
+        return 0
+    fi
 
     # never hand out uid 1000
     local uid
@@ -310,6 +325,7 @@ create_linux_user_local() {
 }
 
 ensure_subuid_subgid() {
+    $K8S && return 0
     # modern useradd assigns the /etc/subuid /etc/subgid range automatically, but add it if it's missing
     grep -q "^${USERNAME}:" /etc/subuid 2>/dev/null || usermod --add-subuids 100000-165535 "$USERNAME" || die "Failed to assign subuid range for '$USERNAME'."
     grep -q "^${USERNAME}:" /etc/subgid 2>/dev/null || usermod --add-subgids 100000-165535 "$USERNAME" || die "Failed to assign subgid range for '$USERNAME'."
@@ -359,6 +375,7 @@ EOF
 }
 
 setup_podman_rootless() {
+    $K8S && return 0
     log "Configuring rootless Podman for '$USERNAME'"
 
     local home_dir="/home/${USERNAME}"
@@ -422,6 +439,7 @@ EOF
 }
 
 test_podman_service() {
+    $K8S && return 0
     local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
     local sock_path="/hostfs/run/user/${USER_ID}/podman/podman.sock"
     local elapsed=0 max_time=60 ready=false
@@ -737,7 +755,9 @@ PID_PORTS=$!
 
 copy_skeleton_files &
 
-if podman container exists openpanel; then
+if $K8S; then
+  true &
+elif podman container exists openpanel; then
   podman start openpanel >/dev/null 2>&1 || nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 & 
 else
   nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 &

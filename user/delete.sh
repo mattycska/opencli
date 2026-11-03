@@ -267,6 +267,10 @@ delete_all_user_files() {
 
 delete_system_user() {
     local context="$1" uid
+    if [[ "${OPENPANEL_BACKEND:-}" == "kubernetes" ]]; then
+        opkube tenant delete "$context" >/dev/null 2>&1 || true
+        return 0
+    fi
     uid=$(id -u "$context" 2>/dev/null)
 
     # stop the user's systemd and podman first, with linger on they'd keep /run/user/<uid> alive

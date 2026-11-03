@@ -19,6 +19,9 @@
 # Company: OpenPanel, LLC.
 ################################################################################
 
+# on OKD/Kubernetes podman and podman-compose are opkube shims and the account is picked with OPKUBE_USER
+podman_k8s() { [[ "${OPENPANEL_BACKEND:-}" == "kubernetes" ]]; }
+
 # echoes the CONTAINER_HOST URL for <username>'s rootless podman socket
 podman_user_socket() {
     local user="$1" uid
@@ -30,6 +33,7 @@ podman_user_socket() {
 podman_user() {
     local user="$1"; shift
     local sock
+    if podman_k8s; then OPKUBE_USER="$user" podman "$@"; return; fi
     sock="$(podman_user_socket "$user")" || return 1
     CONTAINER_HOST="$sock" podman --remote "$@"
 }
@@ -39,6 +43,7 @@ podman_user() {
 podman_compose_user() {
     local user="$1"; shift
     local sock
+    if podman_k8s; then (cd "/home/$user" && OPKUBE_USER="$user" podman-compose "$@"); return; fi
     sock="$(podman_user_socket "$user")" || return 1
     CONTAINER_HOST="$sock" podman-compose "$@"
 }
