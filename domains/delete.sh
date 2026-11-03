@@ -204,6 +204,7 @@ vhost_files_delete() {
 
 delete_domain_file() {
 	log "Removing domain from the proxy"
+	if podman_k8s; then opkube route delete "$context" "$domain_name"; return; fi
  
 	rm -f "/etc/openpanel/caddy/domains/$domain_name.conf"              # domain
 	rm -f "/etc/openpanel/caddy/suspended_domains/$domain_name.conf"    # suspended domain

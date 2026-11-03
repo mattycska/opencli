@@ -568,6 +568,13 @@ update_bind_in_block() {
 create_caddy_domain_file() {
     $SKIP_CADDY_CREATE && { log "Skipping Caddy config (--skip_caddy)"; return; }
 
+    # OKD: the router takes Caddy's place, one Route per domain pointing at the webserver service
+    if podman_k8s; then
+        local ws; ws=$(grep -m1 '^WEB_SERVER=' "/home/${context}/.env" | cut -d= -f2- | tr -d '"')
+        opkube route ensure "$context" "$domain_name" "${ws:-nginx}" 80 && log "Route created for $domain_name"
+        return
+    fi
+
     local logs_dir="/var/log/caddy/domlogs/$domain_name"
     local waf_dir="/var/log/caddy/coraza_waf"
     mkdir -p "$logs_dir" && touch "$logs_dir/access.log"
