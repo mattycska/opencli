@@ -40,6 +40,8 @@ PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 
 get_current_port() {
+  # OKD: the router terminates TLS on 443
+  if podman_k8s; then echo 443; return; fi
   # used to also require /.dockerenv, but OpenAdmin always runs natively on the host now, so the file's presence alone is the signal
   if [ -f /etc/openpanel/no_port ]; then
       current_port=443

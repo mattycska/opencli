@@ -124,6 +124,8 @@ update_container_hosts_entry() {
 
 # reads the current domain from the Caddyfile
 get_current_domain() {
+    # OKD: the router owns the panel hostname, there is no Caddyfile
+    if podman_k8s && [[ -n "${OPENPANEL_DOMAIN:-}" ]]; then echo "$OPENPANEL_DOMAIN"; return 0; fi
     if [[ ! -f "$CADDY_FILE" ]]; then
         log_error "Caddyfile not found at $CADDY_FILE"
         return 1
